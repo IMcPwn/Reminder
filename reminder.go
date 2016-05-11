@@ -175,6 +175,7 @@ func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
     searchDatabaseLogger := log.WithFields(log.Fields{
         "function": "searchDatabase",
     })
+    searchDatabaseLogger.Debug("searchDatabase called")
     for {
         rows, err := db.Query("select ID, currTime, remindTime, message, userid, reminded from reminder")
         if err != nil {
@@ -278,10 +279,11 @@ func printUsage(s *discordgo.Session, m *discordgo.MessageCreate) {
     }
     desc := fmt.Sprintf("```Hi, I'm a bot.\n" +
     "Find my source code at imcpwn.com\n\n" +
-    "I will remind you with your message after the time has elapsed.\nExclude the brackets when typing the command.\n\n" + 
+    "I will remind you with your message after the time has elapsed.\nExclude the brackets when typing the command.\nThe @%s command will not work in a private message. Use !RemindMe instead.\n\n" + 
     "Usage: @%s [number] [minute(s)/hour(s)/day(s)] [reminder message]\n" +
+    "Or: !RemindMe [number] [minute(s)/hour(s)/day(s)] [reminder message]\n" +
     "Example: @%s 5 minutes Send me a reminder in 5 minutes!" + 
-    "```", prefix.Username + prefix.Discriminator, prefix.Username + prefix.Discriminator)
+    "```", prefix.Username + prefix.Discriminator, prefix.Username + prefix.Discriminator, prefix.Username + prefix.Discriminator)
     sendMention(s, m, desc)
 }
 
@@ -291,10 +293,10 @@ func botMentioned(s *discordgo.Session, m*discordgo.MessageCreate) {
     botMentionedLogger := log.WithFields(log.Fields{
         "function": "botMentioned",
     })
+    botMentionedLogger.Debug("botMentioned called")
     content := strings.Split(m.Content, " ")
-    if len(content) < 4 || len(content) > 50 || content[1] == "0" {
+    if len(content) < 4 || len(content) > 50 {
         printUsage(s, m)
-        return
     } else {
         remindNumIn := content[1]
         timeTypeIn := content[2]
@@ -439,10 +441,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
     messageCreateLogger := log.WithFields(log.Fields{
         "function": "messageCreate",
     })
-    if len(m.Mentions) < 1 {
-        messageCreateLogger.Debug("Not Mentioned")
-        return
-    }
+    messageCreateLogger.Debug("messageCreate called")
+    
     prefix, err := s.User("@me")
     if err != nil {
         messageCreateLogger.WithFields(log.Fields{
@@ -454,8 +454,14 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
         messageCreateLogger.Debug("Not responding to self")
         return
     }
-    if m.Mentions[0].ID == prefix.ID  {
-        messageCreateLogger.Info("Mentioned")
-        botMentioned(s, m);
+    if len(m.Mentions) > 0 {
+        if m.Mentions[0].ID == prefix.ID  {
+            messageCreateLogger.Info("Mentioned")
+            botMentioned(s, m);
+        }
+    } else if strings.HasPrefix(m.Content, "!RemindMe") {
+        botMentioned(s, m)
+    } else {
+        messageCreateLogger.Debug("No mentions and doesn't start with !")
     }
 }
