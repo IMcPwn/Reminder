@@ -15,10 +15,6 @@
 
  * For the latest code and contact information visit: http://imcpwn.com
  */
- 
- /* Global TODO
-  - Make timezone local or allow configuring timezone
-  */
 
 package main
 
@@ -98,7 +94,6 @@ func main() {
 
     dg.AddHandler(messageCreate)
 
-    // Open the websocket and begin listening.
     err = dg.Open()
     if err != nil {
         flag.Usage()
@@ -136,6 +131,7 @@ func main() {
     go searchDatabase(dg, db, *SLEEPTIME);
 
     fmt.Println("Welcome to Reminder by IMcPwn.\nCopyright (C) 2016 Carleton Stuberg\nPress enter to quit.")
+    fmt.Println("If the program quits unexpectedly, check the log for details.")
     log.Info("End of main()")
     var input string
     fmt.Scanln(&input)
@@ -147,9 +143,9 @@ func main() {
 func safeCreateDB(path string) (*sql.DB, error) {
    if _, err := os.Stat(path); os.IsNotExist(err) {
         db, err := sql.Open("sqlite3", path)
-	if err != nil {
+	    if err != nil {
             return nil, err
-	}
+	    }
         // Create reminder table
         statement := `
         create table reminder
@@ -178,7 +174,7 @@ func safeCreateDB(path string) (*sql.DB, error) {
 func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
     searchDatabaseLogger := log.WithFields(log.Fields{
         "function": "searchDatabase",
-     })
+    })
     for {
         rows, err := db.Query("select ID, currTime, remindTime, message, userid, reminded from reminder")
         if err != nil {
@@ -223,7 +219,7 @@ func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
                     os.Exit(1)
                 }
                 searchDatabaseLogger.WithFields(log.Fields{
-                        "reminderID": id,
+                    "reminderID": id,
                 }).Info("Reminded user")
                 // Add reminder ID to ID list to set reminded to true later
                 idsDone = append(idsDone, id)
@@ -249,7 +245,7 @@ func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
         }
         idsDone = nil
         searchDatabaseLogger.WithFields(log.Fields{
-                    "sleep": sleep,
+            "sleep": sleep,
         }).Debug("Sleeping")
         time.Sleep(time.Duration(sleep) * time.Second)
     }
@@ -265,7 +261,7 @@ func sendMention(s *discordgo.Session, m *discordgo.MessageCreate, content strin
             "UserID": m.Author.ID,
             "Username": m.Author.Username,
             "error":    err,
-       }).Error("Unable to send message to user")
+        }).Error("Unable to send message to user")
     }
 }
 
@@ -277,7 +273,7 @@ func printUsage(s *discordgo.Session, m *discordgo.MessageCreate) {
         log.WithFields(log.Fields{
             "function": "printUsage",
             "error":    err,
-         }).Error("Unable to log in")
+        }).Error("Unable to log in")
         os.Exit(1)
     }
     desc := fmt.Sprintf("```Hi, I'm a bot.\n" +
@@ -294,7 +290,7 @@ func printUsage(s *discordgo.Session, m *discordgo.MessageCreate) {
 func botMentioned(s *discordgo.Session, m*discordgo.MessageCreate) {
     botMentionedLogger := log.WithFields(log.Fields{
         "function": "botMentioned",
-     })
+    })
     content := strings.Split(m.Content, " ")
     if len(content) < 4 || len(content) > 50 || content[1] == "0" {
         printUsage(s, m)
@@ -319,6 +315,12 @@ func botMentioned(s *discordgo.Session, m*discordgo.MessageCreate) {
             case "days": timeType = (time.Hour * 24)
             default: 
                 printUsage(s, m)
+                botMentionedLogger.WithFields(log.Fields{
+                    "UserID": m.Author.ID,
+                    "Username": m.Author.Username,
+                    "remindNumIn": remindNumIn,
+                    "error":    "case not found",
+                }).Warn("Setting time type")
                 return
         }
 
@@ -355,9 +357,9 @@ func botMentioned(s *discordgo.Session, m*discordgo.MessageCreate) {
             err = rows.Scan(&id)
             if err != nil {
                 botMentionedLogger.WithFields(log.Fields{
-                "RemindID": id,
-                "statement": statement,
-                "error":    err,
+                    "RemindID": id,
+                    "statement": statement,
+                    "error":    err,
                 }).Warn("Querying database for largest id. Could just be the first time running the program.")
                 id = 1
             }
