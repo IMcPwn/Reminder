@@ -26,6 +26,7 @@ import (
     "database/sql"
     "strings"
     "strconv"
+    "unicode/utf8"
     
     "github.com/bwmarrin/discordgo"
     log "github.com/Sirupsen/logrus"
@@ -295,7 +296,7 @@ func botMentioned(s *discordgo.Session, m*discordgo.MessageCreate) {
     })
     botMentionedLogger.Debug("botMentioned called")
     content := strings.Split(m.Content, " ")
-    if len(content) < 4 || len(content) > 50 {
+    if len(content) < 4 || len(content) > 30 || utf8.RuneCountInString(m.Content) > 100 {
         printUsage(s, m)
     } else {
         remindNumIn := content[1]
