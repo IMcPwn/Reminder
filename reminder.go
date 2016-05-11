@@ -450,6 +450,10 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
         }).Error("Unable to log in")
         os.Exit(1)
     }
+    if m.Author.ID == prefix.ID {
+        messageCreateLogger.Debug("Not responding to self")
+        return
+    }
     if m.Mentions[0].ID == prefix.ID  {
         messageCreateLogger.Info("Mentioned")
         botMentioned(s, m);
