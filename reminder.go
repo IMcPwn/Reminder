@@ -183,7 +183,8 @@ func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
             searchDatabaseLogger.WithFields(log.Fields{
                 "error":    err,
             }).Error("Executing query")
-            os.Exit(1)
+            // TODO: Decide on return or os.Exit()
+            return
         }
         // Stores the IDs of the reminders that have been sent
         var idsDone []int
@@ -199,7 +200,8 @@ func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
                 searchDatabaseLogger.WithFields(log.Fields{
                     "error":    err,
                 }).Error("Getting data from row")
-                os.Exit(1)
+                // TODO: Decide on return or os.Exit()
+                return
             }
             if time.Now().UTC().After(remindTime) && !reminded {
                 ch, err := s.UserChannelCreate(userid)
@@ -208,7 +210,8 @@ func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
                         "reminderID": id,
                         "error":    err,
                     }).Error("Creating private message to user")
-                    os.Exit(1)
+                    // TODO: Decide on return or os.Exit()
+                    return
                 }
                 fullmessage := fmt.Sprintf("*Responding to request at %s UTC.*\n" +
                 "You wanted me to remind you: **%s**", currTime.Format(*DATEFORMAT), message) 
@@ -218,7 +221,8 @@ func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
                         "reminderID": id,
                         "error":    err,
                     }).Error("Sending private message to user")
-                    os.Exit(1)
+                    // TODO: Decide on return or os.Exit()
+                    return
                 }
                 searchDatabaseLogger.WithFields(log.Fields{
                     "reminderID": id,
@@ -239,7 +243,8 @@ func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
                     "reminderID": idsDone[i],
                     "error":    err,
                 }).Error("Updating reminder status to \"reminded\"")
-                os.Exit(1)
+                // TODO: Decide on return or os.Exit()
+                return
             }
             searchDatabaseLogger.WithFields(log.Fields{
                 "reminderID": idsDone[i],
@@ -351,7 +356,7 @@ func botMentioned(s *discordgo.Session, m*discordgo.MessageCreate) {
                 "statement": statement,
                 "error":    err,
             }).Error("Querying database for largest ID")
-            os.Exit(1)
+            return
         }
 
         var id int
