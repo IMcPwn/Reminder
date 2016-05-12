@@ -277,13 +277,13 @@ func printUsage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}).Error("Unable to log in")
 		os.Exit(1)
 	}
-	desc := fmt.Sprintf("```Hi, I'm a bot.\n"+
+	desc := fmt.Sprintf("```Hi, I'm a bot. What you entered was not a valid command. See below for usage.\n"+
 		"Find my source code at imcpwn.com\n\n"+
 		"I will remind you with your message after the time has elapsed.\nExclude the brackets when typing the command.\nThe @%s command will not work in a private message. Use !RemindMe instead.\n\n"+
 		"Usage: @%s [number] [minute(s)/hour(s)/day(s)] [reminder message]\n"+
 		"Or: !RemindMe [number] [minute(s)/hour(s)/day(s)] [reminder message]\n"+
-		"Example: @%s 5 minutes Send me a reminder in 5 minutes!"+
-		"```", prefix.Username+prefix.Discriminator, prefix.Username+prefix.Discriminator, prefix.Username+prefix.Discriminator)
+		"Example: !RemindMe 5 minutes This message will be sent to you in 5 minutes!"+
+		"```", prefix.Username+prefix.Discriminator, prefix.Username+prefix.Discriminator)
 	sendMention(s, m, desc)
 }
 
@@ -296,6 +296,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 	botMentionedLogger.Debug("botMentioned called")
 	content := strings.Split(m.Content, " ")
 	if len(content) < 4 || len(content) > 30 || utf8.RuneCountInString(m.Content) > 100 {
+		// TODO: Should this fail silently?
 		printUsage(s, m)
 	} else {
 		remindNumIn := content[1]
@@ -322,6 +323,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		case "days":
 			timeType = (time.Hour * 24)
 		default:
+			// TODO: Should this fail silently?
 			printUsage(s, m)
 			botMentionedLogger.WithFields(log.Fields{
 				"UserID":      m.Author.ID,
@@ -334,6 +336,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		remindNum, err := strconv.Atoi(remindNumIn)
 		if err != nil {
+			// TODO: Should this fail silently?
 			printUsage(s, m)
 			botMentionedLogger.WithFields(log.Fields{
 				"UserID":      m.Author.ID,
@@ -377,7 +380,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// Begin prepared statement
 		tx, err := db.Begin()
 		if err != nil {
-			sendMention(s, m, " Error scheduling reminder.")
+			// Deprecated. Silent failures are preferred.
+			//sendMention(s, m, " Error scheduling reminder.")
 			botMentionedLogger.WithFields(log.Fields{
 				"RemindID": id,
 				"error":    err,
@@ -387,7 +391,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// Prepared SQL statement. Screw injections.
 		stmt, err := tx.Prepare("insert into reminder(ID, currTime, remindTime, message, userid, reminded) values(?, ?, ?, ?, ?, ?)")
 		if err != nil {
-			sendMention(s, m, " Error scheduling reminder.")
+			// Deprecated. Silent failures are preferred.
+			//sendMention(s, m, " Error scheduling reminder.")
 			botMentionedLogger.WithFields(log.Fields{
 				"RemindID": id,
 				"error":    err,
@@ -397,7 +402,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		_, err = stmt.Exec(id+1, time.Now().UTC().Format(*DATEFORMAT), remindDate.Format(*DATEFORMAT), message, m.Author.ID, 0)
 		if err != nil {
-			sendMention(s, m, "Error scheduling reminder.")
+			// Deprecated. Silent failures are preferred.
+			//sendMention(s, m, "Error scheduling reminder.")
 			botMentionedLogger.WithFields(log.Fields{
 				"RemindID": id,
 				"error":    err,
@@ -414,7 +420,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// First try to private message the user the status, otherwise try to @mention the user there is an error
 		ch, err := s.UserChannelCreate(m.Author.ID)
 		if err != nil {
-			sendMention(s, m, "I'm having trouble private messaging you.")
+			// Deprecated. Silent failures are preferred.
+			//sendMention(s, m, "I'm having trouble private messaging you.")
 			botMentionedLogger.WithFields(log.Fields{
 				"RemindID": id,
 				"UserID":   m.Author.ID,
@@ -425,7 +432,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 		_, err = s.ChannelMessageSend(ch.ID, "Got it. I'll remind you here at "+remindDate.Format(*DATEFORMAT)+" UTC.")
 		if err != nil {
-			sendMention(s, m, "I'm having trouble private messaging you.")
+			// Deprecated. Silent failures are preferred.
+			//sendMention(s, m, "I'm having trouble private messaging you.")
 			botMentionedLogger.WithFields(log.Fields{
 				"RemindID": id,
 				"UserID":   m.Author.ID,
