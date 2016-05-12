@@ -33,10 +33,10 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// SQLite database
+// db is the SQLite database used by Reminder
 var db *sql.DB
 
-// Format of dates
+// DATEFORMAT is the command line flag for the format of dates
 var DATEFORMAT *string
 
 func main() {
@@ -120,7 +120,7 @@ func main() {
 	}
 	log.Info("Logged in successfully as " + prefix.Username)
 
-	db, err = safeCreateDB(*DBPATH)
+	err = safeCreateDB(*DBPATH)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"error": err,
@@ -143,35 +143,30 @@ func main() {
 }
 
 // Create database if it doesn't already exist.
-func safeCreateDB(path string) (*sql.DB, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		db, err := sql.Open("sqlite3", path)
-		if err != nil {
-			return nil, err
-		}
-		// Create reminder table
-		statement := `
-        create table reminder
-        (
-            ID integer primary key,
-            currTime datetime,
-            remindTime datetime,
-            message text,
-            userid text,
-            reminded integer
-        )
-        `
-		_, err = db.Exec(statement)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		db, err := sql.Open("sqlite3", path)
-		if err != nil {
-			return nil, err
-		}
+func safeCreateDB(path string) error {
+	db, err = sql.Open("sqlite3", path)
+	if err != nil {
+		return err
 	}
-	return db, nil
+
+	// Statement to create reminder table if it doesn't already exist
+	statement := `
+	create table if not exists reminder
+	(
+		ID integer primary key,
+		currTime datetime,
+		remindTime datetime,
+		message text,
+		userid text,
+		reminded integer
+	)
+	`
+
+	_, err = db.Exec(statement)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Search database for date equal to current time or later.
@@ -250,7 +245,6 @@ func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
 				"reminderID": idsDone[i],
 			}).Info("Updated reminded flag to true")
 		}
-		idsDone = nil
 		searchDatabaseLogger.WithFields(log.Fields{
 			"sleep": sleep,
 		}).Debug("Sleeping")
