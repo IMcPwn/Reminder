@@ -144,6 +144,7 @@ func main() {
 
 // Create database if it doesn't already exist.
 func safeCreateDB(path string) error {
+	var err error
 	db, err = sql.Open("sqlite3", path)
 	if err != nil {
 		return err
@@ -346,8 +347,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		remindDate = remindDate.Add(time.Duration(remindNum) * timeType)
 
 		statement := `
-        select max(id) from reminder
-        `
+		select max(id) from reminder
+		`
 
 		rows, err := db.Query(statement)
 		if err != nil {
