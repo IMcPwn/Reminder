@@ -470,12 +470,13 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 	if len(m.Mentions) > 0 {
 		if m.Mentions[0].ID == prefix.ID {
-			messageCreateLogger.Info("Mentioned")
+			messageCreateLogger.Info("@Mentioned")
 			botMentioned(s, m)
 		}
 	} else if strings.HasPrefix(m.Content, "!RemindMe") {
+		messageCreateLogger.Info("!RemindMe mentioned")
 		botMentioned(s, m)
 	} else {
-		messageCreateLogger.Debug("No mentions and doesn't start with !")
+		messageCreateLogger.Debug("No mentions and message doesn't start with !RemindMe")
 	}
 }
