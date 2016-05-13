@@ -109,7 +109,7 @@ func main() {
 	}
 	log.Info("Websocket opened")
 
-	prefix, err := dg.User("@me")
+	bot, err := dg.User("@me")
 	if err != nil {
 		flag.Usage()
 		log.WithFields(log.Fields{
@@ -118,7 +118,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	log.Info("Logged in successfully as " + prefix.Username)
+	log.Info("Logged in successfully as " + bot.Username)
 
 	err = safeCreateDB(*DBPATH)
 	if err != nil {
@@ -268,28 +268,20 @@ func sendMention(s *discordgo.Session, m *discordgo.MessageCreate, content strin
 }
 
 // Send bot usage information to user.
-func printUsage(s *discordgo.Session, m *discordgo.MessageCreate) {
-	prefix, err := s.User("@me")
-	if err != nil {
-		log.WithFields(log.Fields{
-			"function": "printUsage",
-			"error":    err,
-		}).Error("Unable to log in")
-		os.Exit(1)
-	}
+func printUsage(s *discordgo.Session, m *discordgo.MessageCreate, bot *discordgo.User) {
 	desc := fmt.Sprintf("```Hi, I'm a bot. What you entered was not a valid command. See below for usage.\n"+
 		"Find my source code at imcpwn.com\n\n"+
 		"I will remind you with your message after the time has elapsed.\nExclude the brackets when typing the command.\nThe @%s command will not work in a private message. Use !RemindMe instead.\n\n"+
 		"Usage: @%s [number] [minute(s)/hour(s)/day(s)] [reminder message]\n"+
 		"Or: !RemindMe [number] [minute(s)/hour(s)/day(s)] [reminder message]\n"+
 		"Example: !RemindMe 5 minutes This message will be sent to you in 5 minutes!"+
-		"```", prefix.Username+prefix.Discriminator, prefix.Username+prefix.Discriminator)
+		"```", bot.Username+bot.Discriminator, bot.Username+bot.Discriminator)
 	sendMention(s, m, desc)
 }
 
 // Attempt to add reminder information to database
 // and send confirmation message to user if it was successfully scheduled.
-func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
+func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate, bot *discordgo.User) {
 	botMentionedLogger := log.WithFields(log.Fields{
 		"function": "botMentioned",
 	})
@@ -457,31 +449,31 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	})
 	messageCreateLogger.Debug("messageCreate called")
 
-	prefix, err := s.User("@me")
+	bot, err := s.User("@me")
 	if err != nil {
 		messageCreateLogger.WithFields(log.Fields{
 			"error": err,
 		}).Error("Unable to log in")
 		os.Exit(1)
 	}
-	if m.Author.ID == prefix.ID {
+	if m.Author.ID == bot.ID {
 		messageCreateLogger.Debug("Not responding to self")
 		return
 	}
 	if len(m.Mentions) > 0 {
-		if m.Mentions[0].ID == prefix.ID {
+		if m.Mentions[0].ID == bot.ID {
 			messageCreateLogger.WithFields(log.Fields{
 				"UserID":   m.Author.ID,
 				"Username": m.Author.Username,
 			}).Debug("@Mentioned")
-			botMentioned(s, m)
+			botMentioned(s, m, bot)
 		}
 	} else if strings.HasPrefix(m.Content, "!RemindMe") {
 		messageCreateLogger.WithFields(log.Fields{
 			"UserID":   m.Author.ID,
 			"Username": m.Author.Username,
 		}).Debug("!RemindMe mentioned")
-		botMentioned(s, m)
+		botMentioned(s, m, bot)
 	} else {
 		messageCreateLogger.Debug("No mentions and message doesn't start with !RemindMe")
 	}
