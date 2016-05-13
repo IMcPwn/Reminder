@@ -36,6 +36,9 @@ import (
 // db is the SQLite database used by Reminder
 var db *sql.DB
 
+// bot is the Discord user the program is running as
+var bot *discordgo.User
+
 // DATEFORMAT is the command line flag for the format of dates
 var DATEFORMAT *string
 
@@ -109,7 +112,7 @@ func main() {
 	}
 	log.Info("Websocket opened")
 
-	bot, err := dg.User("@me")
+	bot, err = dg.User("@me")
 	if err != nil {
 		flag.Usage()
 		log.WithFields(log.Fields{
@@ -132,7 +135,7 @@ func main() {
 	defer db.Close()
 
 	// Call database search as goroutine
-	go searchDatabase(dg, db, *SLEEPTIME)
+	go searchDatabase(dg, *SLEEPTIME)
 
 	fmt.Println("Welcome to Reminder by IMcPwn.\nCopyright (C) 2016 IMcPwn \nPress enter to quit.")
 	fmt.Println("If the program quits unexpectedly, check the log for details.")
@@ -173,7 +176,7 @@ func safeCreateDB(path string) error {
 // Search database for date equal to current time or later.
 // If found, send the reminder to the user.
 // Afterwords update reminded status in database.
-func searchDatabase(s *discordgo.Session, db *sql.DB, sleep int) {
+func searchDatabase(s *discordgo.Session, sleep int) {
 	searchDatabaseLogger := log.WithFields(log.Fields{
 		"function": "searchDatabase",
 	})
@@ -268,7 +271,7 @@ func sendMention(s *discordgo.Session, m *discordgo.MessageCreate, content strin
 }
 
 // Send bot usage information to user.
-func printUsage(s *discordgo.Session, m *discordgo.MessageCreate, bot *discordgo.User) {
+func printUsage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	desc := fmt.Sprintf("```Hi, I'm a bot. What you entered was not a valid command. See below for usage.\n"+
 		"Find my source code at imcpwn.com\n\n"+
 		"I will remind you with your message after the time has elapsed.\nExclude the brackets when typing the command.\nThe @%s command will not work in a private message. Use !RemindMe instead.\n\n"+
@@ -281,7 +284,7 @@ func printUsage(s *discordgo.Session, m *discordgo.MessageCreate, bot *discordgo
 
 // Attempt to add reminder information to database
 // and send confirmation message to user if it was successfully scheduled.
-func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate, bot *discordgo.User) {
+func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 	botMentionedLogger := log.WithFields(log.Fields{
 		"function": "botMentioned",
 	})
@@ -289,7 +292,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate, bot *discord
 	content := strings.Split(m.Content, " ")
 	if len(content) < 4 || len(content) > 30 || utf8.RuneCountInString(m.Content) > 100 {
 		// TODO: Should this fail silently?
-		printUsage(s, m, bot)
+		printUsage(s, m)
 	} else {
 		remindNumIn := content[1]
 		timeTypeIn := content[2]
@@ -316,7 +319,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate, bot *discord
 			timeType = (time.Hour * 24)
 		default:
 			// TODO: Should this fail silently?
-			printUsage(s, m, bot)
+			printUsage(s, m)
 			botMentionedLogger.WithFields(log.Fields{
 				"UserID":      m.Author.ID,
 				"Username":    m.Author.Username,
@@ -329,7 +332,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate, bot *discord
 		remindNum, err := strconv.Atoi(remindNumIn)
 		if err != nil {
 			// TODO: Should this fail silently?
-			printUsage(s, m, bot)
+			printUsage(s, m)
 			botMentionedLogger.WithFields(log.Fields{
 				"UserID":      m.Author.ID,
 				"Username":    m.Author.Username,
@@ -449,13 +452,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	})
 	messageCreateLogger.Debug("messageCreate called")
 
-	bot, err := s.User("@me")
-	if err != nil {
-		messageCreateLogger.WithFields(log.Fields{
-			"error": err,
-		}).Error("Unable to log in")
-		os.Exit(1)
-	}
 	if m.Author.ID == bot.ID {
 		messageCreateLogger.Debug("Not responding to self")
 		return
@@ -466,14 +462,14 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				"UserID":   m.Author.ID,
 				"Username": m.Author.Username,
 			}).Debug("@Mentioned")
-			botMentioned(s, m, bot)
+			botMentioned(s, m)
 		}
 	} else if strings.HasPrefix(m.Content, "!RemindMe") {
 		messageCreateLogger.WithFields(log.Fields{
 			"UserID":   m.Author.ID,
 			"Username": m.Author.Username,
 		}).Debug("!RemindMe mentioned")
-		botMentioned(s, m, bot)
+		botMentioned(s, m)
 	} else {
 		messageCreateLogger.Debug("No mentions and message doesn't start with !RemindMe")
 	}
