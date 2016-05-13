@@ -40,12 +40,12 @@ var db *sql.DB
 var DATEFORMAT *string
 
 func main() {
-	TOKEN := flag.String("t", "", "Discord authentication token")
-	DBPATH := flag.String("db", "reminder.db", "Database path")
-	DATEFORMAT = flag.String("date", "2006-01-02 15:04:05", "Date format")
-	LOGDEST := flag.String("log", "reminder.log", "Log name")
-	LOGLEVEL := flag.String("loglevel", "info", "Log level")
-	SLEEPTIME := flag.Int("sleep", 10, "Seconds to sleep in between checking the database")
+	TOKEN := flag.String("t", "", "Discord authentication token.")
+	DBPATH := flag.String("db", "reminder.db", "Database file name.")
+	DATEFORMAT = flag.String("date", "2006-01-02 15:04:05", "Date format.")
+	LOGDEST := flag.String("log", "reminder.log", "Log file name.")
+	LOGLEVEL := flag.String("loglevel", "info", "Log level. Options: info, debug, warn, error")
+	SLEEPTIME := flag.Int("sleep", 10, "Seconds to sleep in between checking the database.")
 	flag.Parse()
 
 	if _, err := os.Stat(*LOGDEST); os.IsNotExist(err) {
@@ -133,6 +133,9 @@ func main() {
 
 	// Call database search as goroutine
 	go searchDatabase(dg, db, *SLEEPTIME)
+
+	// Set status to playing !RemindMe
+	dg.UpdateStatus(0, "!RemindMe")
 
 	fmt.Println("Welcome to Reminder by IMcPwn.\nCopyright (C) 2016 Carleton Stuberg\nPress enter to quit.")
 	fmt.Println("If the program quits unexpectedly, check the log for details.")
@@ -470,11 +473,17 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 	if len(m.Mentions) > 0 {
 		if m.Mentions[0].ID == prefix.ID {
-			messageCreateLogger.Info("@Mentioned")
+			messageCreateLogger.WithFields(log.Fields{
+				"UserID":   m.Author.ID,
+				"Username": m.Author.Username,
+			}).Debug("@Mentioned")
 			botMentioned(s, m)
 		}
 	} else if strings.HasPrefix(m.Content, "!RemindMe") {
-		messageCreateLogger.Info("!RemindMe mentioned")
+		messageCreateLogger.WithFields(log.Fields{
+			"UserID":   m.Author.ID,
+			"Username": m.Author.Username,
+		}).Debug("!RemindMe mentioned")
 		botMentioned(s, m)
 	} else {
 		messageCreateLogger.Debug("No mentions and message doesn't start with !RemindMe")
