@@ -134,9 +134,6 @@ func main() {
 	// Call database search as goroutine
 	go searchDatabase(dg, db, *SLEEPTIME)
 
-	// Set status to playing !RemindMe
-	dg.UpdateStatus(0, "!RemindMe")
-
 	fmt.Println("Welcome to Reminder by IMcPwn.\nCopyright (C) 2016 Carleton Stuberg\nPress enter to quit.")
 	fmt.Println("If the program quits unexpectedly, check the log for details.")
 	log.Debug("End of main()")
