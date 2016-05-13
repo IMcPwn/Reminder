@@ -289,7 +289,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate, bot *discord
 	content := strings.Split(m.Content, " ")
 	if len(content) < 4 || len(content) > 30 || utf8.RuneCountInString(m.Content) > 100 {
 		// TODO: Should this fail silently?
-		printUsage(s, m)
+		printUsage(s, m, bot)
 	} else {
 		remindNumIn := content[1]
 		timeTypeIn := content[2]
@@ -316,7 +316,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate, bot *discord
 			timeType = (time.Hour * 24)
 		default:
 			// TODO: Should this fail silently?
-			printUsage(s, m)
+			printUsage(s, m, bot)
 			botMentionedLogger.WithFields(log.Fields{
 				"UserID":      m.Author.ID,
 				"Username":    m.Author.Username,
@@ -329,7 +329,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate, bot *discord
 		remindNum, err := strconv.Atoi(remindNumIn)
 		if err != nil {
 			// TODO: Should this fail silently?
-			printUsage(s, m)
+			printUsage(s, m, bot)
 			botMentionedLogger.WithFields(log.Fields{
 				"UserID":      m.Author.ID,
 				"Username":    m.Author.Username,
