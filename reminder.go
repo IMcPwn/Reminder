@@ -53,6 +53,9 @@ type SafeDatabase struct {
 // SafeDB provides safe access to the database
 var SafeDB SafeDatabase
 
+// ratelimit limits how many messages can be sent in an amount of time
+var ratelimit chan func()
+
 func main() {
 	TOKEN := flag.String("t", "", "Discord authentication token.")
 	DBPATH := flag.String("db", "reminder.db", "Database file name.")
@@ -60,6 +63,7 @@ func main() {
 	LOGDEST := flag.String("log", "reminder.log", "Log file name.")
 	LOGLEVEL := flag.String("loglevel", "info", "Log level. Options: info, debug, warn, error")
 	SLEEPTIME := flag.Int("sleep", 10, "Seconds to sleep in between checking the database.")
+	LIMIT := flag.Int("limit", 100, "The rate limit for sending messages (excluding reminders)")
 	flag.Parse()
 
 	if _, err := os.Stat(*LOGDEST); os.IsNotExist(err) {
@@ -145,6 +149,10 @@ func main() {
 	log.Info("Database created/connected")
 	defer SafeDB.db.Close()
 
+	// Create ratelimit
+	ratelimit = make(chan func(), *LIMIT)
+	go handle(ratelimit)
+
 	// Call database search as goroutine
 	go searchDatabase(dg, *SLEEPTIME)
 
@@ -184,6 +192,13 @@ func safeCreateDB(path string) error {
 	return nil
 }
 
+func handle(ratelimit chan func()) {
+	for f := range ratelimit {
+		f()
+		time.Sleep(1 * time.Second)
+	}
+}
+
 // Search database for date equal to current time or later.
 // If found, send the reminder to the user.
 // Afterwords update reminded status in database.
@@ -193,13 +208,14 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 	})
 	searchDatabaseLogger.Debug("searchDatabase called")
 	for {
-		// Lock the mutex while querying the database for all fields
+		// Lock the mutex while accessing the database
 		SafeDB.mux.Lock()
 		rows, err := SafeDB.db.Query("select ID, currTime, remindTime, message, userid, reminded from reminder")
 		if err != nil {
 			searchDatabaseLogger.WithFields(log.Fields{
 				"error": err,
 			}).Warn("Executing query for all fields")
+			SafeDB.mux.Unlock()
 			return
 		}
 		// Stores the IDs of the reminders that have been sent
@@ -216,6 +232,7 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 				searchDatabaseLogger.WithFields(log.Fields{
 					"error": err,
 				}).Warn("Getting data from row")
+				SafeDB.mux.Unlock()
 				return
 			}
 			if time.Now().UTC().After(remindTime) && !reminded {
@@ -225,17 +242,18 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 						"reminderID": id,
 						"error":      err,
 					}).Warn("Creating private message to user")
+					SafeDB.mux.Unlock()
 					return
 				}
 				fullmessage := fmt.Sprintf("*Responding to request at %s UTC.*\n"+
 					"You wanted me to remind you: **%s**", currTime.Format(*DATEFORMAT), message)
-				// TODO: Rate limit this.
 				_, err = s.ChannelMessageSend(ch.ID, fullmessage)
 				if err != nil {
 					searchDatabaseLogger.WithFields(log.Fields{
 						"reminderID": id,
 						"error":      err,
 					}).Warn("Sending private message to user")
+					SafeDB.mux.Unlock()
 					return
 				}
 				searchDatabaseLogger.WithFields(log.Fields{
@@ -246,10 +264,6 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 			}
 		}
 		rows.Close()
-		// Unlock the mutex when finished
-		SafeDB.mux.Unlock()
-		// Lock the mutex while writing to the database
-		SafeDB.mux.Lock()
 		// Update reminded messages "reminded" status to true
 		for i := 0; i < len(idsDone); i++ {
 			statement := fmt.Sprintf("update reminder\n"+
@@ -261,6 +275,7 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 					"reminderID": idsDone[i],
 					"error":      err,
 				}).Warn("Updating reminder status to \"reminded\"")
+				SafeDB.mux.Unlock()
 				return
 			}
 			searchDatabaseLogger.WithFields(log.Fields{
@@ -279,15 +294,18 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 // Send message to author with @theirname.
 // Only usable from MessageCreate event.
 func sendMention(s *discordgo.Session, m *discordgo.MessageCreate, content string) {
-	// TODO: Rate limit this.
-	_, err := s.ChannelMessageSend(m.ChannelID, "@"+m.Author.Username+m.Author.Discriminator+" "+content)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"function": "sendMention",
-			"UserID":   m.Author.ID,
-			"Username": m.Author.Username,
-			"error":    err,
-		}).Warn("Unable to send message to user")
+	// Rate limit sending mention to user
+	ratelimit <- func() {
+		_, err := s.ChannelMessageSend(m.ChannelID, "@"+m.Author.Username+m.Author.Discriminator+" "+content)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"function": "sendMention",
+				"UserID":   m.Author.ID,
+				"Username": m.Author.Username,
+				"error":    err,
+			}).Warn("Unable to send message to user")
+			return
+		}
 	}
 }
 
@@ -369,7 +387,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		select max(id) from reminder
 		`
 
-		// Lock the mutex while querying the database for largest id
+		// Lock the mutex while using the database
 		SafeDB.mux.Lock()
 
 		rows, err := SafeDB.db.Query(statement)
@@ -378,6 +396,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 				"statement": statement,
 				"error":     err,
 			}).Warn("Querying database for largest ID")
+			SafeDB.mux.Unlock()
 			return
 		}
 
@@ -396,42 +415,34 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 		rows.Close()
 
-		// Unlock the mutex when finished
-		SafeDB.mux.Unlock()
-
-		// Lock the mutex while writing to the database
-		SafeDB.mux.Lock()
 		// Begin prepared statement
 		tx, err := SafeDB.db.Begin()
 		if err != nil {
-			// Deprecated. Silent failures are preferred.
-			//sendMention(s, m, " Error scheduling reminder.")
 			botMentionedLogger.WithFields(log.Fields{
 				"RemindID": id,
 				"error":    err,
 			}).Warn("Beginning SQL prepared statement")
+			SafeDB.mux.Unlock()
 			return
 		}
 		// Prepared SQL statement. Screw injections.
 		stmt, err := tx.Prepare("insert into reminder(ID, currTime, remindTime, message, userid, reminded) values(?, ?, ?, ?, ?, ?)")
 		if err != nil {
-			// Deprecated. Silent failures are preferred.
-			//sendMention(s, m, " Error scheduling reminder.")
 			botMentionedLogger.WithFields(log.Fields{
 				"RemindID": id,
 				"error":    err,
 			}).Warn("Preparing SQL Statement")
+			SafeDB.mux.Unlock()
 			return
 		}
 
 		_, err = stmt.Exec(id+1, time.Now().UTC().Format(*DATEFORMAT), remindDate.Format(*DATEFORMAT), message, m.Author.ID, 0)
 		if err != nil {
-			// Deprecated. Silent failures are preferred.
-			//sendMention(s, m, "Error scheduling reminder.")
 			botMentionedLogger.WithFields(log.Fields{
 				"RemindID": id,
 				"error":    err,
 			}).Warn("Inserting reminder into database")
+			SafeDB.mux.Unlock()
 			return
 		}
 		tx.Commit()
@@ -447,8 +458,6 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// First try to private message the user the status, otherwise try to @mention the user there is an error
 		ch, err := s.UserChannelCreate(m.Author.ID)
 		if err != nil {
-			// Deprecated. Silent failures are preferred.
-			//sendMention(s, m, "I'm having trouble private messaging you.")
 			botMentionedLogger.WithFields(log.Fields{
 				"RemindID": id,
 				"UserID":   m.Author.ID,
@@ -457,22 +466,22 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 			}).Warn("Creating private message to user")
 			return
 		}
-		// TODO: Rate limit this
-		_, err = s.ChannelMessageSend(ch.ID, "Got it. I'll remind you here at "+remindDate.Format(*DATEFORMAT)+" UTC.")
-		if err != nil {
-			// Deprecated. Silent failures are preferred.
-			//sendMention(s, m, "I'm having trouble private messaging you.")
+		// Rate limit sending confirmation message
+		ratelimit <- func() {
+			_, err = s.ChannelMessageSend(ch.ID, "Got it. I'll remind you here at "+remindDate.Format(*DATEFORMAT)+" UTC.")
+			if err != nil {
+				botMentionedLogger.WithFields(log.Fields{
+					"RemindID": id,
+					"UserID":   m.Author.ID,
+					"Username": m.Author.Username,
+					"error":    err,
+				}).Warn("Sending private message to user")
+				return
+			}
 			botMentionedLogger.WithFields(log.Fields{
 				"RemindID": id,
-				"UserID":   m.Author.ID,
-				"Username": m.Author.Username,
-				"error":    err,
-			}).Warn("Sending private message to user")
-			return
+			}).Info("Reminder confirmation sent to user")
 		}
-		botMentionedLogger.WithFields(log.Fields{
-			"RemindID": id,
-		}).Info("Reminder confirmation sent to user")
 	}
 }
 
