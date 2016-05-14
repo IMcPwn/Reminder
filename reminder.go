@@ -63,6 +63,7 @@ func main() {
 	LOGDEST := flag.String("log", "reminder.log", "Log file name.")
 	LOGLEVEL := flag.String("loglevel", "info", "Log level. Options: info, debug, warn, error")
 	SLEEPTIME := flag.Int("sleep", 10, "Seconds to sleep in between checking the database.")
+	LIMIT := flag.Int("limit", 100, "The rate limit for sending messages (excluding reminders)")
 	flag.Parse()
 
 	if _, err := os.Stat(*LOGDEST); os.IsNotExist(err) {
@@ -149,7 +150,7 @@ func main() {
 	defer SafeDB.db.Close()
 
 	// Create ratelimit
-	ratelimit = make(chan func(), 100)
+	ratelimit = make(chan func(), *LIMIT)
 	go handle(ratelimit)
 
 	// Call database search as goroutine
