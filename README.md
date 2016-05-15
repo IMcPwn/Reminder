@@ -44,7 +44,7 @@ Command line options:
 
 License
 ===================
-[The Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+BSD 3-clause
 
 
 Contact
