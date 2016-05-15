@@ -63,7 +63,7 @@ func main() {
 	LOGDEST := flag.String("log", "reminder.log", "Log file name.")
 	LOGLEVEL := flag.String("loglevel", "info", "Log level. Options: info, debug, warn, error")
 	SLEEPTIME := flag.Int("sleep", 10, "Seconds to sleep in between checking the database.")
-	LIMIT := flag.Int("limit", 100, "The rate limit for sending messages (excluding reminders)")
+	LIMIT := flag.Int("limit", 100, "The rate limit for sending messages (excluding reminders).")
 	flag.Parse()
 
 	if _, err := os.Stat(*LOGDEST); os.IsNotExist(err) {
@@ -149,6 +149,9 @@ func main() {
 	log.Info("Database created/connected")
 	defer SafeDB.db.Close()
 
+	dg.UpdateStatus(0, "!RemindMe help")
+	log.Info("Set status to \"Playing\" !RemindMe help")
+
 	// Create ratelimit
 	ratelimit = make(chan func(), *LIMIT)
 	go handle(ratelimit)
@@ -192,6 +195,7 @@ func safeCreateDB(path string) error {
 	return nil
 }
 
+// Delay by 1 second each time the rate limit is exceeded.
 func handle(ratelimit chan func()) {
 	for f := range ratelimit {
 		f()
@@ -216,6 +220,7 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 				"error": err,
 			}).Warn("Executing query for all fields")
 			SafeDB.mux.Unlock()
+			time.Sleep(time.Duration(sleep) * time.Second)
 			return
 		}
 		// Stores the IDs of the reminders that have been sent
@@ -233,6 +238,7 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 					"error": err,
 				}).Warn("Getting data from row")
 				SafeDB.mux.Unlock()
+				time.Sleep(time.Duration(sleep) * time.Second)
 				return
 			}
 			if time.Now().UTC().After(remindTime) && !reminded {
@@ -243,6 +249,7 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 						"error":      err,
 					}).Warn("Creating private message to user")
 					SafeDB.mux.Unlock()
+					time.Sleep(time.Duration(sleep) * time.Second)
 					return
 				}
 				fullmessage := fmt.Sprintf("*Responding to request at %s UTC.*\n"+
@@ -254,6 +261,7 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 						"error":      err,
 					}).Warn("Sending private message to user")
 					SafeDB.mux.Unlock()
+					time.Sleep(time.Duration(sleep) * time.Second)
 					return
 				}
 				searchDatabaseLogger.WithFields(log.Fields{
@@ -276,6 +284,7 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 					"error":      err,
 				}).Warn("Updating reminder status to \"reminded\"")
 				SafeDB.mux.Unlock()
+				time.Sleep(time.Duration(sleep) * time.Second)
 				return
 			}
 			searchDatabaseLogger.WithFields(log.Fields{
@@ -311,13 +320,12 @@ func sendMention(s *discordgo.Session, m *discordgo.MessageCreate, content strin
 
 // Send bot usage information to user.
 func printUsage(s *discordgo.Session, m *discordgo.MessageCreate) {
-	desc := fmt.Sprintf("```Hi, I'm a bot. What you entered was not a valid command. See below for usage.\n"+
-		"Find my source code at imcpwn.com\n\n"+
-		"I will remind you with your message after the time has elapsed.\nExclude the brackets when typing the command.\nThe @%s command will not work in a private message. Use !RemindMe instead.\n\n"+
-		"Usage: @%s [number] [minute(s)/hour(s)/day(s)] [reminder message]\n"+
-		"Or: !RemindMe [number] [minute(s)/hour(s)/day(s)] [reminder message]\n"+
-		"Example: !RemindMe 5 minutes This message will be sent to you in 5 minutes!"+
-		"```", bot.Username+bot.Discriminator, bot.Username+bot.Discriminator)
+	desc := "```Hi, I'm a bot. What you entered was not a valid command. See below for usage.\n" +
+		"Find my source code at imcpwn.com\n\n" +
+		"I will remind you with your message after the time has elapsed.\nExclude the brackets when typing the command.\n\n" +
+		"Usage: !RemindMe [number] [minute(s)/hour(s)/day(s)] [reminder message]\n" +
+		"Example: !RemindMe 5 minutes This message will be sent to you in 5 minutes!" +
+		"```"
 	sendMention(s, m, desc)
 }
 
