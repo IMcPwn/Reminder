@@ -66,10 +66,16 @@ func main() {
 	LIMIT := flag.Int("limit", 100, "The rate limit for sending messages (excluding reminders).")
 	flag.Parse()
 
+	if *TOKEN == "" {
+		flag.Usage()
+		fmt.Println("-t option is required")
+		return
+	}
+	
 	if _, err := os.Stat(*LOGDEST); os.IsNotExist(err) {
 		_, err := os.Create(*LOGDEST)
 		if err != nil {
-			fmt.Println("Can't create log")
+			fmt.Println("Can't create log file")
 			fmt.Println(err)
 			return
 		}
@@ -83,6 +89,7 @@ func main() {
 	defer logFile.Close()
 
 	log.SetOutput(logFile)
+	// TODO: Make this configurable
 	log.SetFormatter(&log.JSONFormatter{})
 
 	if *LOGLEVEL == "info" {
@@ -96,12 +103,6 @@ func main() {
 	}
 
 	log.Debug("Log set up")
-
-	if *TOKEN == "" {
-		flag.Usage()
-		fmt.Println("-t option is required")
-		return
-	}
 
 	dg, err := discordgo.New(*TOKEN)
 	if err != nil {
