@@ -359,7 +359,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		printUsage(s, m)
 	} else {
 		remindNumIn := content[1]
-		timeTypeIn := content[2]
+		timeTypeIn := strings.ToUpper(content[2])
 		// TODO: Improve method of string concatenation
 		var message string
 		for i := 3; i < len(content); i++ {
@@ -369,20 +369,20 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 		var timeType time.Duration
 
 		switch timeTypeIn {
-		case "minutes":
+		case "MINUTES":
 			timeType = time.Minute
-		case "minute":
+		case "MINUTE":
 			timeType = time.Minute
-		case "hours":
+		case "HOURS":
 			timeType = time.Hour
-		case "hour":
+		case "HOUR":
 			timeType = time.Hour
-		case "day":
+		case "DAY":
 			timeType = (time.Hour * 24)
-		case "days":
+		case "DAYS":
 			timeType = (time.Hour * 24)
 		default:
-			// TODO: Should this fail silently?
+			// TODO: Delete this message after x seconds
 			printUsage(s, m)
 			botMentionedLogger.WithFields(log.Fields{
 				"UserID":      m.Author.ID,
@@ -395,7 +395,7 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		remindNum, err := strconv.Atoi(remindNumIn)
 		if err != nil {
-			// TODO: Should this fail silently?
+			// TODO: Delete this message after x seconds
 			printUsage(s, m)
 			botMentionedLogger.WithFields(log.Fields{
 				"UserID":      m.Author.ID,
@@ -422,6 +422,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 				"error":     err,
 			}).Warn("Querying database for largest ID")
 			SafeDB.mux.Unlock()
+			// TODO: Delete this message after x seconds
+			printUsage(s, m)
 			return
 		}
 
@@ -448,6 +450,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 				"error":    err,
 			}).Warn("Beginning SQL prepared statement")
 			SafeDB.mux.Unlock()
+			// TODO: Delete this message after x seconds
+			//sendMention(s, m, "Error scheduling reminder.")
 			return
 		}
 		// Prepared SQL statement. Screw injections.
@@ -458,6 +462,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 				"error":    err,
 			}).Warn("Preparing SQL Statement")
 			SafeDB.mux.Unlock()
+			// TODO: Delete this message after x seconds
+			//sendMention(s, m, "Error scheduling reminder.")
 			return
 		}
 
@@ -468,6 +474,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 				"error":    err,
 			}).Warn("Inserting reminder into database")
 			SafeDB.mux.Unlock()
+			// TODO: Delete this message after x seconds
+			//sendMention(s, m, "Error scheduling reminder.")
 			return
 		}
 		tx.Commit()
@@ -489,6 +497,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 				"Username": m.Author.Username,
 				"error":    err,
 			}).Warn("Creating private message to user")
+			// TODO: Delete this message after x seconds
+			//sendMention(s, m, "I'm having trouble private messaging you.")
 			return
 		}
 		// Rate limit sending confirmation message
@@ -501,6 +511,8 @@ func botMentioned(s *discordgo.Session, m *discordgo.MessageCreate) {
 					"Username": m.Author.Username,
 					"error":    err,
 				}).Warn("Sending private message to user")
+				// TODO: Delete this message after x seconds
+				//sendMention(s, m, "I'm having trouble private messaging you.")
 				return
 			}
 			botMentionedLogger.WithFields(log.Fields{
@@ -531,7 +543,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			}).Debug("@Mentioned")
 			botMentioned(s, m)
 		}
-	} else if strings.HasPrefix(m.Content, "!RemindMe") {
+	} else if strings.HasPrefix(strings.ToUpper(m.Content), "!REMINDME") {
 		messageCreateLogger.WithFields(log.Fields{
 			"UserID":   m.Author.ID,
 			"Username": m.Author.Username,
