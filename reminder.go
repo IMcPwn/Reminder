@@ -354,7 +354,7 @@ func printUsage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	desc := "```Hi, I'm a bot. What you entered was not a valid command. See below for usage.\n" +
 		"Find my source code at imcpwn.com\n\n" +
 		"I will remind you with your message after the time has elapsed.\nExclude the brackets when typing the command.\n\n" +
-		"Usage: !RemindMe [number] [minute(s)/hour(s)/day(s)] [reminder message]\n" +
+		"Usage: !RemindMe [number] [minute(s)/hour(s)/day(s)/week(s)] [reminder message]\n" +
 		"Example: !RemindMe 5 minutes This message will be sent to you in 5 minutes!" +
 		"Other commands: !RemindMe cancel --> Cancels all scheduled reminders" +
 		"```"
@@ -426,6 +426,10 @@ func remindCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 		timeType = (time.Hour * 24)
 	case "DAYS":
 		timeType = (time.Hour * 24)
+	case "WEEK":
+		timeType = (time.Hour * 168)
+	case "WEEKS":
+		timeType = (time.Hour * 168)
 	default:
 		// TODO: Delete this message after x seconds
 		//printUsage(s, m)
