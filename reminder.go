@@ -303,9 +303,8 @@ func searchDatabase(s *discordgo.Session, sleep int) {
 
 // Send message to author with @theirname.
 // Only usable from MessageCreate event.
-func sendMention(s *discordgo.Session, m *discordgo.MessageCreate, content string) {
-	// Rate limit sending mention to user
-	_, err := s.ChannelMessageSend(m.ChannelID, "@"+m.Author.Username+m.Author.Discriminator+" "+content)
+func sendMention(s *discordgo.Session, m *discordgo.MessageCreate, content string) st *discordgo.Message {
+	st, err := s.ChannelMessageSend(m.ChannelID, "@"+m.Author.Username+m.Author.Discriminator+" "+content)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"function": "sendMention",
@@ -314,8 +313,9 @@ func sendMention(s *discordgo.Session, m *discordgo.MessageCreate, content strin
 			"Channel":  m.ChannelID,
 			"error":    err,
 		}).Warn("Sending message to user")
-		return
+		return nil
 	}
+	return st
 }
 
 // Try to private message the user. If that fails @mention them where they
@@ -358,7 +358,7 @@ func printUsage(s *discordgo.Session, m *discordgo.MessageCreate) {
 		"Example: !RemindMe 5 minutes This message will be sent to you in 5 minutes!" +
 		"Other commands: !RemindMe cancel --> Cancels all scheduled reminders" +
 		"```"
-	sendMention(s, m, desc)
+	_ = sendMention(s, m, desc)
 }
 
 // Respond to the "cancel" command for cancelling all scheduled reminders.
