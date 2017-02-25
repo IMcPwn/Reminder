@@ -116,7 +116,7 @@ func main() {
 
 	log.Debug("Log set up")
 
-	dg, err := discordgo.New(*TOKEN)
+	dg, err := discordgo.New("Bot " + *TOKEN)
 	if err != nil {
 		flag.Usage()
 		log.WithFields(log.Fields{
